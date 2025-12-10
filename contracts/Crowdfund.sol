@@ -19,6 +19,7 @@ contract Crowdfund {
     Campaign[]public allCampaigns;
 
     event CampaignCreated(uint256 id, address owner, string title);
+    event Donation(uint256 id, address donor, uint256 amount);
 
     function createCampaign(
         address _owner,
@@ -56,5 +57,27 @@ contract Crowdfund {
 
     function getCampaigns() public view returns (Campaign[] memory) {
         return allCampaigns;
+    }
+
+    function donateToCampaign(uint256 _id) public payable {
+        Campaign storage c = campaigns[_id];
+        require(c.owner != address(0), "Campaign not found");
+        require(block.timestamp <= c.deadline, "Campaign has ended");
+        require(msg.value > 0, "Donation must be greater than 0");
+
+        c.donators.push(msg.sender);
+        c.donations.push(msg.value);
+        c.amountCollected += msg.value;
+
+        for (uint256 i = 0; i < allCampaigns.length; i++) {
+            if (allCampaigns[i].id == _id) {
+                allCampaigns[i].donators.push(msg.sender);
+                allCampaigns[i].donations.push(msg.value);
+                allCampaigns[i].amountCollected = c.amountCollected;
+                break;
+            }
+        }
+
+        emit Donation(_id, msg.sender, msg.value);
     }
 }
