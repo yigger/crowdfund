@@ -43,7 +43,12 @@ function App() {
       const signer = await provider.getSigner()
       const crowdfundContract = new ethers.Contract(CONTRACT_ADDRESS, CrowdfundABI, signer)
       setContract(crowdfundContract)
-      fetchCampaigns(crowdfundContract)
+      try {
+        const data: Campaign[] = await crowdfundContract.getCampaigns()
+        setCampaigns(data)
+      } catch (error) {
+        console.error('获取项目失败:', error)
+      }
     }
   }
 
@@ -61,7 +66,22 @@ function App() {
     if (ethereum && account && !contract) {
       initializeContract()
     }
-  }, [account])
+  }, [account, ethereum, contract])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const provider = ethereum
+          ? new ethers.BrowserProvider(ethereum as Eip1193Provider)
+          : new ethers.JsonRpcProvider((import.meta.env.VITE_RPC_URL as string) ?? 'http://localhost:8545')
+        const readContract = new ethers.Contract(CONTRACT_ADDRESS, CrowdfundABI, provider)
+        const data: Campaign[] = await readContract.getCampaigns()
+        setCampaigns(data)
+      } catch (error) {
+        console.error('获取项目失败:', error)
+      }
+    })()
+  }, [ethereum])
 
   const shortAddress = useMemo(() => {
     if (!account) return ''
@@ -74,8 +94,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="border-b">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="sticky top-0 z-20 border-b bg-gradient-to-r from-primary/5 to-secondary/5 backdrop-blur">
+        <div className="w-full px-6 h-16 flex items-center justify-between">
           <Link to="/" className="text-xl font-semibold">众筹 DApp</Link>
           {!account ? (
             <Button onClick={connectWallet}>连接钱包</Button>
@@ -87,15 +107,12 @@ function App() {
           )}
         </div>
       </div>
-      <div className="container mx-auto px-4 py-6">
+      <div className="container max-w-6xl mx-auto px-6 py-10">
         <Routes>
           <Route path="/" element={<Home campaigns={campaigns} account={account} contract={contract} onSelect={(id) => navigate(`/project/${id}`)} />} />
-          <Route path="/create" element={<CreateProject account={account} contract={contract} onCreated={() => contract && fetchCampaigns(contract)} />} />
+          <Route path="/create" element={<CreateProject account={account} contract={contract} onCreated={() => contract && fetchCampaigns(contract)} onConnect={connectWallet} />} />
           <Route path="/project/:id" element={<ProjectDetail account={account} contract={contract} />} />
         </Routes>
-        <div className="mt-5 text-sm text-gray-500">
-          <p>请确保本地节点运行且 MetaMask 连接到 8545</p>
-        </div>
       </div>
     </div>
   )

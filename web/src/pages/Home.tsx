@@ -41,7 +41,11 @@ export default function Home({ campaigns, onSelect }: Props) {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-3 items-end mb-6">
+      <section className="mb-8 text-center">
+        <h1 className="text-3xl sm:text-4xl font-bold">探索与支持优秀项目</h1>
+        <p className="text-gray-600 mt-2">筛选、搜索并捐助，助力早期创意与开源创新</p>
+      </section>
+      <div className="flex flex-wrap gap-3 items-end justify-center mb-8">
         <div className="flex-1 min-w-52">
           <label className="block text-sm mb-1">搜索</label>
           <input
@@ -82,23 +86,23 @@ export default function Home({ campaigns, onSelect }: Props) {
           </select>
         </div>
       </div>
-      <div className="columns-1 sm:columns-2 lg:columns-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {filtered.map((c) => (
           <div
             key={String(c.id)}
-            className="break-inside-avoid mb-6 border rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md"
+            className="border rounded-xl shadow-sm p-5 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => onSelect(Number(c.id))}
           >
             <div className="flex items-start justify-between">
-              <h3 className="text-lg font-medium">{String(c.title)}</h3>
+              <h3 className="text-lg font-semibold">{String(c.title)}</h3>
               <span className="text-xs px-2 py-1 rounded bg-secondary">
                 {new Date(Number(c.deadline) * 1000).toLocaleDateString()}
               </span>
             </div>
             <p className="text-sm text-gray-600 mt-2">{String(c.description)}</p>
-            <div className="mt-3 text-sm">
+            <div className="mt-4 text-sm grid grid-cols-2 gap-2">
               <div>目标: {ethers.formatEther(c.target)} ETH</div>
-              <div>已筹: {ethers.formatEther(c.amountCollected)} ETH</div>
+              <div className="text-right">已筹: {ethers.formatEther(c.amountCollected)} ETH</div>
             </div>
           </div>
         ))}
