@@ -15,6 +15,7 @@ export default function ProjectDetail({ account, contract }: Props) {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const run = async () => {
@@ -36,10 +37,33 @@ export default function ProjectDetail({ account, contract }: Props) {
 
   const donate = async () => {
     if (!campaign) return
+    setError('')
+    if (!amount || Number(amount) <= 0 || Number.isNaN(Number(amount))) {
+      setError('请输入有效的捐款金额')
+      return
+    }
+    if (account && campaign && account.toLowerCase() === campaign.owner.toLowerCase()) {
+      setError('发起者不能给自己捐款')
+      return
+    }
+    if (campaign && Number(campaign.deadline) * 1000 < Date.now()) {
+      setError('项目已截止，无法捐款')
+      return
+    }
     setLoading(true)
     try {
       if (contract && 'donateToCampaign' in (contract as object)) {
-        const c = contract as unknown as { donateToCampaign: (id: number, opts: { value: bigint }) => Promise<unknown> }
+        const c = contract as unknown as {
+          donateToCampaign: (id: number, opts: { value: bigint }) => Promise<unknown>
+          donateToCampaign: { staticCall: (id: number, opts: { value: bigint }) => Promise<void> }
+        }
+        try {
+          await c.donateToCampaign.staticCall(id, { value: ethers.parseEther(amount) })
+        } catch (simErr) {
+          const msg = simErr instanceof Error ? simErr.message : String(simErr)
+          setError(msg.includes('execution reverted') ? msg.replace('execution reverted: ', '') : msg)
+          return
+        }
         const tx = await c.donateToCampaign(id, { value: ethers.parseEther(amount) })
         await tx.wait()
       } else {
@@ -55,7 +79,8 @@ export default function ProjectDetail({ account, contract }: Props) {
         setCampaign(found)
       }
     } catch (e) {
-      console.error(e)
+      const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e)
+      setError(msg.includes('missing revert data') ? '交易估算失败，可能由于捐款条件不满足' : msg)
     } finally {
       setLoading(false)
     }
@@ -99,6 +124,7 @@ export default function ProjectDetail({ account, contract }: Props) {
         </div>
         <Button onClick={donate} disabled={loading || !amount || !account}>{loading ? '捐款中...' : '捐款'}</Button>
       </div>
+      {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
     </div>
   )
 }

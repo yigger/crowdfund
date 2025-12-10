@@ -61,6 +61,7 @@ contract Crowdfund {
 
     function donateToCampaign(uint256 _id) public payable {
         Campaign storage c = campaigns[_id];
+        require(msg.sender != c.owner, "Owner cannot donate to themselves");
         require(c.owner != address(0), "Campaign not found");
         require(block.timestamp <= c.deadline, "Campaign has ended");
         require(msg.value > 0, "Donation must be greater than 0");
