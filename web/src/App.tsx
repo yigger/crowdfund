@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ethers } from 'ethers';
 import { CrowdfundABI } from './utils/contract';
+import { Button } from '@/components/ui/button';
 import './App.css';
 
 // 重要：请将此处替换为你本地部署的合约地址
-const CONTRACT_ADDRESS = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"; 
+const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; 
 
 function App() {
   const [account, setAccount] = useState<string>('');
@@ -13,11 +14,11 @@ function App() {
 
   // 连接钱包
   const connectWallet = async () => {
-    if (window.ethereum) {
+    if ((window as any).ethereum) {
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
         setAccount(accounts[0]);
-        initializeContract(accounts[0]);
+        initializeContract();
       } catch (error) {
         console.error("连接失败:", error);
       }
@@ -27,9 +28,9 @@ function App() {
   };
 
   // 初始化合约实例
-  const initializeContract = async (account: string) => {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+  const initializeContract = async () => {
+    if ((window as any).ethereum) {
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       const crowdfundContract = new ethers.Contract(CONTRACT_ADDRESS, CrowdfundABI, signer);
       setContract(crowdfundContract);
@@ -79,34 +80,33 @@ function App() {
   };
 
   return (
-    <div className="container">
-      <h1>众筹 DApp</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">众筹 DApp</h1>
       
       {!account ? (
-        <button onClick={connectWallet}>连接钱包</button>
+        <Button onClick={connectWallet}>连接钱包</Button>
       ) : (
         <div>
-          <p>当前账户: {account}</p>
-          <button onClick={createCampaign}>创建测试项目</button>
+          <p className="mb-4">当前账户: {account}</p>
+          <Button onClick={createCampaign}>创建测试项目</Button>
           
-          <div style={{ marginTop: '30px' }}>
-            <h2>所有项目 ({campaigns.length})</h2>
-            <div style={{ display: 'grid', gap: '20px' }}>
+          <div className="mt-8">
+            <h2 className="text-2xl font-semibold mb-4">所有项目 ({campaigns.length})</h2>
+            <div className="grid gap-5">
               {campaigns.map((campaign, index) => (
-                <div key={index} style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '8px' }}>
-                  <h3>{campaign.title}</h3>
-                  <p>{campaign.description}</p>
-                  <p>目标: {ethers.formatEther(campaign.target)} ETH</p>
+                <div key={index} className="border p-4 rounded-lg shadow-sm">
+                  <h3 className="text-xl font-medium">{campaign.title}</h3>
+                  <p className="text-gray-600">{campaign.description}</p>
+                  <p className="mt-2">目标: {ethers.formatEther(campaign.target)} ETH</p>
                   <p>已筹: {ethers.formatEther(campaign.amountCollected)} ETH</p>
-                  <p>发起人: {campaign.owner.slice(0, 6)}...{campaign.owner.slice(-4)}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
       )}
-
-      <div style={{ marginTop: '20px' }}>
+      
+      <div className="mt-5 text-sm text-gray-500">
         <p>提示：请确保本地 Hardhat 节点正在运行，并且 MetaMask 连接到了 Localhost 8545</p>
       </div>
     </div>
