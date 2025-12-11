@@ -14,9 +14,13 @@ export default function Home({ campaigns, onSelect }: Props) {
   const [minTarget, setMinTarget] = useState('')
   const [maxTarget, setMaxTarget] = useState('')
   const [sortBy, setSortBy] = useState<'time' | 'amount' | 'none'>('none')
+  const [showAll, setShowAll] = useState(false)
 
   const filtered = useMemo(() => {
     let list: Campaign[] = campaigns
+    if (!showAll) {
+      list = list.filter((c) => Number(c.status) === 1)
+    }
     if (query) {
       const q = query.toLowerCase()
       list = list.filter((c) =>
@@ -37,7 +41,7 @@ export default function Home({ campaigns, onSelect }: Props) {
       list = [...list].sort((a, b) => Number(b.amountCollected) - Number(a.amountCollected))
     }
     return list
-  }, [campaigns, query, minTarget, maxTarget, sortBy])
+  }, [campaigns, query, minTarget, maxTarget, sortBy, showAll])
 
   return (
     <div>
@@ -84,6 +88,10 @@ export default function Home({ campaigns, onSelect }: Props) {
             <option value="time">按截止时间</option>
             <option value="amount">按已筹金额</option>
           </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="showAll" type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+          <label htmlFor="showAll" className="text-sm">显示全部（含未激活）</label>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
