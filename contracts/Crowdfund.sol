@@ -30,6 +30,7 @@ contract Crowdfund {
 
     mapping(uint256 => Campaign) public campaigns;
     uint256[] public allCampaignIds;
+    // 冗余一份数据，方便根据 id 快速查找索引，避免遍历 allCampaignIds 查找
     mapping(uint256 => uint256) public idToIndex;
 
     event CampaignCreated(uint256 id, address owner, string title);
