@@ -29,7 +29,8 @@ contract Crowdfund {
     }
 
     mapping(uint256 => Campaign) public campaigns;
-    Campaign[]public allCampaigns;
+    uint256[] public allCampaignIds;
+    mapping(uint256 => uint256) public idToIndex;
 
     event CampaignCreated(uint256 id, address owner, string title);
     event Donation(uint256 id, address donor, uint256 amount);
@@ -77,7 +78,8 @@ contract Crowdfund {
         });
 
         campaigns[compaignId] = newCampaign;
-        allCampaigns.push(newCampaign);
+        allCampaignIds.push(compaignId);
+        idToIndex[compaignId] = allCampaignIds.length - 1;
         emit CampaignCreated(compaignId, _owner, _title);
         return compaignId;
     }
@@ -89,13 +91,6 @@ contract Crowdfund {
         // require(block.timestamp > c.challengeEnd, "Challenge period ongoing");
         require(yesVotes[_id] >= noVotes[_id], "Not approved by vote");
         c.status = CampaignStatus.Active;
-        for (uint256 i = 0; i < allCampaigns.length; i++) {
-            if (allCampaigns[i].id == _id) {
-                allCampaigns[i].status = CampaignStatus.Active;
-                allCampaigns[i].stake = 0;
-                break;
-            }
-        }
         // refund stake on activation
         uint256 s = c.stake;
         c.stake = 0;
@@ -104,7 +99,14 @@ contract Crowdfund {
     }
 
     function getCampaigns() public view returns (Campaign[] memory) {
-        return allCampaigns;
+        uint256 len = allCampaignIds.length;
+        Campaign[] memory list = new Campaign[](len);
+        for (uint256 i = 0; i < len; i++) {
+            uint256 id = allCampaignIds[i];
+            Campaign memory cm = campaigns[id];
+            list[i] = cm;
+        }
+        return list;
     }
 
     function donateToCampaign(uint256 _id) public payable {
@@ -118,16 +120,6 @@ contract Crowdfund {
         c.donators.push(msg.sender);
         c.donations.push(msg.value);
         c.amountCollected += msg.value;
-
-        for (uint256 i = 0; i < allCampaigns.length; i++) {
-            if (allCampaigns[i].id == _id) {
-                allCampaigns[i].donators.push(msg.sender);
-                allCampaigns[i].donations.push(msg.value);
-                allCampaigns[i].amountCollected = c.amountCollected;
-                break;
-            }
-        }
-
         emit Donation(_id, msg.sender, msg.value);
     }
 
@@ -157,12 +149,6 @@ contract Crowdfund {
         } else {
             c.status = CampaignStatus.Failed;
         }
-        for (uint256 i = 0; i < allCampaigns.length; i++) {
-            if (allCampaigns[i].id == _id) {
-                allCampaigns[i].status = c.status;
-                break;
-            }
-        }
         emit Finalized(_id, c.status);
     }
 
@@ -173,12 +159,6 @@ contract Crowdfund {
         uint256 amount = c.amountCollected;
         require(amount > 0, "No funds");
         c.amountCollected = 0;
-        for (uint256 i = 0; i < allCampaigns.length; i++) {
-            if (allCampaigns[i].id == _id) {
-                allCampaigns[i].amountCollected = 0;
-                break;
-            }
-        }
         (bool ok, ) = payable(msg.sender).call{value: amount}("");
         require(ok, "Withdrawal failed");
     }

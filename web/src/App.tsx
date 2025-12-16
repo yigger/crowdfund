@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Link, Routes, Route, useNavigate } from 'react-router-dom'
 import Home from '@/pages/Home'
 import CreateProject from '@/pages/CreateProject'
+import MyProjects from '@/pages/MyProjects'
 import ProjectDetail from '@/pages/ProjectDetail'
 import type { Campaign } from '@/types'
 import './App.css'
@@ -110,6 +111,10 @@ function App() {
     navigate('/create')
   }
 
+  const handleMyProjectsClick = () => {
+    navigate('/my-projects')
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-20 border-b bg-gradient-to-r from-primary/5 to-secondary/5 backdrop-blur">
@@ -120,6 +125,7 @@ function App() {
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-sm">{shortAddress}{balance ? `（余额：${balance} ETH）` : ''}</span>
+              <Button onClick={handleMyProjectsClick} variant="secondary">我的项目</Button>
               <Button onClick={handleCreateClick}>创建项目</Button>
             </div>
           )}
@@ -130,6 +136,7 @@ function App() {
           <Route path="/" element={<Home campaigns={campaigns} account={account} contract={contract} onSelect={(id) => navigate(`/project/${id}`)} />} />
           <Route path="/create" element={<CreateProject account={account} contract={contract} onCreated={() => contract && fetchCampaigns(contract)} onConnect={connectWallet} />} />
           <Route path="/project/:id" element={<ProjectDetail account={account} contract={contract} />} />
+          <Route path="/my-projects" element={<MyProjects account={account} contract={contract} />} />
         </Routes>
       </div>
     </div>
