@@ -15,6 +15,7 @@ function App() {
   const [account, setAccount] = useState<string>('')
   const [contract, setContract] = useState<ethers.Contract | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [balance, setBalance] = useState<string>('')
   const navigate = useNavigate()
 
   // 连接钱包
@@ -83,9 +84,26 @@ function App() {
     })()
   }, [ethereum])
 
+  useEffect(() => {
+    ;(async () => {
+      try {
+        if (!account) {
+          setBalance('')
+          return
+        }
+        const provider = ethereum
+          ? new ethers.BrowserProvider(ethereum as Eip1193Provider)
+          : new ethers.JsonRpcProvider((import.meta.env.VITE_RPC_URL as string) ?? 'http://localhost:8545')
+        const b = await provider.getBalance(account)
+        setBalance(ethers.formatEther(b))
+      } catch (error) {
+        console.error('获取余额失败:', error)
+      }
+    })()
+  }, [account, ethereum])
+
   const shortAddress = useMemo(() => {
-    if (!account) return ''
-    return `${account.slice(0, 6)}...${account.slice(-4)}`
+    return account;
   }, [account])
 
   const handleCreateClick = () => {
@@ -101,7 +119,7 @@ function App() {
             <Button onClick={connectWallet}>连接钱包</Button>
           ) : (
             <div className="flex items-center gap-3">
-              <span className="text-sm">{shortAddress}</span>
+              <span className="text-sm">{shortAddress}{balance ? `（余额：${balance} ETH）` : ''}</span>
               <Button onClick={handleCreateClick}>创建项目</Button>
             </div>
           )}

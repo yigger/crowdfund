@@ -67,6 +67,20 @@ async function main() {
       console.log(`已更新前端 ABI: ${frontendContractFilePath}`);
     }
   }
+
+  // seed 10 campaigns
+  // const campaignFactory = await ethers.getContractFactory("Campaign");
+  // for (let i = 0; i < 10; i++) {
+  //   const campaign = await campaignFactory.deploy(
+  //     `Campaign ${i}`,
+  //     `Description for Campaign ${i}`,
+  //     ethers.parseEther("100"),
+  //     ethers.parseEther("1000"),
+  //     1000000000 + i
+  //   );
+  //   await campaign.waitForDeployment();
+  //   console.log(`Campaign ${i} deployed to: ${await campaign.getAddress()}`);
+  // }
   
 }
 

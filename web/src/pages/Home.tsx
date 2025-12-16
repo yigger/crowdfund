@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ethers } from 'ethers'
 import type { Campaign } from '@/types'
 
@@ -9,12 +9,15 @@ type Props = {
   onSelect: (id: number) => void
 }
 
-export default function Home({ campaigns, onSelect }: Props) {
+export default function Home({ campaigns, account, contract, onSelect }: Props) {
   const [query, setQuery] = useState('')
   const [minTarget, setMinTarget] = useState('')
   const [maxTarget, setMaxTarget] = useState('')
   const [sortBy, setSortBy] = useState<'time' | 'amount' | 'none'>('none')
-  const [showAll, setShowAll] = useState(false)
+  const [showAll, setShowAll] = useState(true)
+  const [contractBalance, setContractBalance] = useState<string>('')
+  const [pendingStakeSum, setPendingStakeSum] = useState<string>('')
+  const [donationFlows, setDonationFlows] = useState<Array<{ id: number; donor: string; amount: string; time: string }>>([])
 
   const filtered = useMemo(() => {
     let list: Campaign[] = campaigns
@@ -43,12 +46,71 @@ export default function Home({ campaigns, onSelect }: Props) {
     return list
   }, [campaigns, query, minTarget, maxTarget, sortBy, showAll])
 
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const ethereum = (window as unknown as { ethereum?: unknown }).ethereum
+        const provider = ethereum
+          ? new ethers.BrowserProvider(ethereum as unknown)
+          : new ethers.JsonRpcProvider((import.meta.env.VITE_RPC_URL as string) ?? 'http://localhost:8545')
+        const addr = contract ? await (contract as unknown as { getAddress: () => Promise<string> }).getAddress() : (import.meta.env.VITE_CONTRACT_ADDRESS as string)
+        if (!addr) return
+        const bal = await provider.getBalance(addr)
+        setContractBalance(ethers.formatEther(bal))
+        const ps = campaigns.filter((c) => Number(c.status) === 0).reduce((acc, c) => acc + BigInt(c.stake ?? 0n), 0n)
+        setPendingStakeSum(ethers.formatEther(ps))
+        const { CrowdfundABI } = await import('@/utils/contract')
+        const read = new ethers.Contract(addr, CrowdfundABI, provider)
+        const logs = await read.queryFilter(read.filters.Donation())
+        const flows = await Promise.all(
+          logs.slice(-10).map(async (log) => {
+            const bn = await provider.getBlock(log.blockNumber)
+            const t = bn?.timestamp ? new Date(Number(bn.timestamp) * 1000).toLocaleString() : ''
+            const id = Number(log.args?.[0])
+            const donor = String(log.args?.[1])
+            const amount = ethers.formatEther(log.args?.[2] as bigint)
+            return { id, donor, amount, time: t }
+          })
+        )
+        setDonationFlows(flows.reverse())
+      } catch {}
+    })()
+  }, [campaigns, account, contract])
+
   return (
     <div>
       <section className="mb-8 text-center">
         <h1 className="text-3xl sm:text-4xl font-bold">探索与支持优秀项目</h1>
         <p className="text-gray-600 mt-2">筛选、搜索并捐助，助力早期创意与开源创新</p>
       </section>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="border rounded-md p-3">
+          <div className="text-sm">合约余额</div>
+          <div className="text-lg font-medium">{contractBalance ? `${contractBalance} ETH` : '—'}</div>
+        </div>
+        <div className="border rounded-md p-3">
+          <div className="text-sm">当前锁定押金</div>
+          <div className="text-lg font-medium">{pendingStakeSum ? `${pendingStakeSum} ETH` : '—'}</div>
+        </div>
+        <div className="border rounded-md p-3">
+          <div className="text-sm">最近捐赠流水</div>
+          <div className="text-xs mt-2 space-y-1">
+            {donationFlows.length === 0 ? (
+              <div>暂无数据</div>
+            ) : (
+              donationFlows.map((f, i) => (
+                <div key={i}>
+                  <span>#{f.id}</span>
+                  <span className="ml-2">{f.amount} ETH</span>
+                  <span className="ml-2">{f.donor.slice(0, 6)}...{f.donor.slice(-4)}</span>
+                  <span className="ml-2 text-muted-foreground">{f.time}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+      
       <div className="flex flex-wrap gap-3 items-end justify-center mb-8">
         <div className="flex-1 min-w-52">
           <label className="block text-sm mb-1">搜索</label>

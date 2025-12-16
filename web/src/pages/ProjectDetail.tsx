@@ -73,11 +73,17 @@ export default function ProjectDetail({ account, contract }: Props) {
   }, [campaign, account, hasVoted])
 
   const canFinalize = useMemo(() => {
-    if (!campaign) return false
-    const now = Date.now()
-    const end = Number(campaign.challengeEnd) * 1000
-    return Number(campaign.status) === 0 && now > end
-  }, [campaign])
+    if (!campaign || !account) return false
+    const isOwner = account.toLowerCase() === String(campaign.owner).toLowerCase()
+    const approved = yes >= no
+    return Number(campaign.status) === 0 && isOwner && approved
+  }, [campaign, account, yes, no])
+
+  const canWithdraw = useMemo(() => {
+    if (!campaign || !account) return false
+    const isOwner = account.toLowerCase() === String(campaign.owner).toLowerCase()
+    return Number(campaign.status) === 3 && isOwner && BigInt(campaign.amountCollected ?? 0n) > 0n
+  }, [campaign, account])
 
   const vote = async (approve: boolean) => {
     if (!contract || !campaign) return
@@ -106,20 +112,36 @@ export default function ProjectDetail({ account, contract }: Props) {
     }
   }
 
-  const finalize = async () => {
+  const active = async () => {
     if (!contract || !campaign) return
     setError('')
     setLoading(true)
     try {
-      const cf = contract as unknown as { finalizeCampaign: (id: number) => Promise<unknown> }
-      const tx = await cf.finalizeCampaign(id)
+      const cf = contract as unknown as {
+        activateCampaign: (id: number) => Promise<unknown>
+        activateCampaign: { staticCall: (id: number) => Promise<void> }
+      }
+      try {
+        await cf.activateCampaign.staticCall(id)
+      } catch (simErr) {
+        const msg = simErr instanceof Error ? simErr.message : String(simErr)
+        setError(msg.includes('execution reverted') ? msg.replace('execution reverted: ', '') : msg)
+        return
+      }
+      const tx = await cf.activateCampaign(id)
       await tx.wait()
       const list: Campaign[] = await contract.getCampaigns()
       const found = list.find((c) => Number(c.id) === id) || null
       setCampaign(found)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
+      setError(
+        msg.includes('missing revert data')
+          ? '交易估算失败，可能因为不满足激活条件（仅发起人、挑战期结束且赞成票≥反对票）'
+          : msg.includes('execution reverted')
+          ? msg.replace('execution reverted: ', '')
+          : msg
+      )
     } finally {
       setLoading(false)
     }
@@ -176,11 +198,65 @@ export default function ProjectDetail({ account, contract }: Props) {
     }
   }
 
+  const withdraw = async () => {
+    if (!contract || !campaign) return
+    setError('')
+    setLoading(true)
+    try {
+      const c = contract as unknown as {
+        withdraw: (id: number) => Promise<unknown>
+        withdraw: { staticCall: (id: number) => Promise<void> }
+      }
+      try {
+        await c.withdraw.staticCall(id)
+      } catch (simErr) {
+        const msg = simErr instanceof Error ? simErr.message : String(simErr)
+        setError(msg.includes('execution reverted') ? msg.replace('execution reverted: ', '') : msg)
+        return
+      }
+      const tx = await c.withdraw(id)
+      await tx.wait()
+      const list: Campaign[] = await contract.getCampaigns()
+      const found = list.find((x) => Number(x.id) === id) || null
+      setCampaign(found)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg.includes('missing revert data') ? '交易估算失败，可能不满足提现条件' : msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const finalize = async () => {
+    if (!contract || !campaign) return
+    setError('')
+    setLoading(true)
+    try {
+      const c = contract as unknown as {
+        finalizeCampaign: (id: number) => Promise<unknown>
+      }
+      const tx = await c.finalizeCampaign(id)
+      await tx.wait()
+      const list: Campaign[] = await contract.getCampaigns()
+      const found = list.find((x) => Number(x.id) === id) || null
+      setCampaign(found)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!campaign) return <div>加载中...</div>
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h2 className="text-2xl font-semibold mb-2">{String(campaign.title)}</h2>
+      <h2 className="text-2xl font-semibold mb-2">
+        {String(campaign.title)}
+        <button onClick={finalize}>结项</button>
+        <button onClick={withdraw}>提现</button>
+      </h2>
       <p className="text-gray-600 mb-4">{String(campaign.description)}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="border rounded-md p-3">
@@ -224,7 +300,12 @@ export default function ProjectDetail({ account, contract }: Props) {
         <div className="mb-6 flex items-center gap-3">
           <Button onClick={() => vote(true)} disabled={loading || !canVote}>赞成</Button>
           <Button onClick={() => vote(false)} disabled={loading || !canVote} variant="secondary">反对</Button>
-          <Button onClick={finalize} disabled={loading || !canFinalize}>结束投票并裁决</Button>
+          <Button onClick={active} disabled={loading || !canFinalize}>结束投票并激活</Button>
+        </div>
+      )}
+      {Number(campaign.status) === 3 && (
+        <div className="mb-6">
+          <Button onClick={withdraw} disabled={loading || !canWithdraw}>提现至发起人</Button>
         </div>
       )}
       <div className="flex items-end gap-3">

@@ -40,17 +40,24 @@ describe("Crowdfund", function () {
   });
 
   it("vote and finalize to Active refunds stake", async () => {
+    // 创建项目
     const minStake: bigint = await cf.MIN_STAKE();
     const deadline = Math.floor(Date.now() / 1000) + days(3);
     await (await cf.createCampaign(owner.address, "B", "", ethersRef.parseEther("1"), deadline, { value: minStake })).wait();
+
     const id = Number((await cf.getCampaigns())[0].id);
     await expect(cf.connect(owner).voteCampaign(id, true)).to.be.revertedWith("Owner cannot vote");
+
+    // - cf.finalizeCampaign(id) 返回一个交易对象（ TransactionResponse ）。
+    // - tx.wait() 等待区块确认并返回交易回执（ TransactionReceipt ），如果交易失败或回滚，会抛出错误。
     await (await cf.connect(user1).voteCampaign(id, true)).wait();
+
     const balBefore = await ethersRef.provider.getBalance(await cf.getAddress());
     const end = Number((await cf.getCampaigns())[0].challengeEnd);
     const now = Math.floor(Date.now() / 1000);
     await mineAfter(Math.max(0, end - now + 1));
     await (await cf.finalizeCampaign(id)).wait();
+
     const list = await cf.getCampaigns();
     expect(Number(list[0].status)).eq(1);
     expect(list[0].stake).eq(0n);

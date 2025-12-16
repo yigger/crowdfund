@@ -40,6 +40,7 @@ contract Crowdfund {
     mapping(uint256 => uint256) public yesVotes;
     mapping(uint256 => uint256) public noVotes;
 
+    // Treasury address is set to the contract address
     constructor() {
         treasury = address(this);
     }
@@ -58,9 +59,7 @@ contract Crowdfund {
             _deadline > block.timestamp,
             "The deadline should be a date in the future."
         );
-
         uint256 compaignId = uint256(keccak256(abi.encodePacked(block.timestamp, _owner, _title))) % 1000000000000;
-        
         Campaign memory newCampaign = Campaign({
             id: compaignId,
             owner: _owner,
@@ -79,7 +78,6 @@ contract Crowdfund {
 
         campaigns[compaignId] = newCampaign;
         allCampaigns.push(newCampaign);
-
         emit CampaignCreated(compaignId, _owner, _title);
         return compaignId;
     }
@@ -88,7 +86,7 @@ contract Crowdfund {
         Campaign storage c = campaigns[_id];
         require(c.owner == msg.sender, "Only the owner can activate the campaign");
         require(c.status == CampaignStatus.Pending, "Campaign is not pending");
-        require(block.timestamp > c.challengeEnd, "Challenge period ongoing");
+        // require(block.timestamp > c.challengeEnd, "Challenge period ongoing");
         require(yesVotes[_id] >= noVotes[_id], "Not approved by vote");
         c.status = CampaignStatus.Active;
         for (uint256 i = 0; i < allCampaigns.length; i++) {
@@ -148,39 +146,40 @@ contract Crowdfund {
         emit Voted(_id, msg.sender, approve);
     }
 
+    // 结项
     function finalizeCampaign(uint256 _id) public {
         Campaign storage c = campaigns[_id];
         require(c.owner != address(0), "Campaign not found");
-        require(block.timestamp > c.challengeEnd, "Challenge period ongoing");
-        require(c.status == CampaignStatus.Pending, "Already finalized");
-        if (yesVotes[_id] >= noVotes[_id]) {
-            c.status = CampaignStatus.Active;
-            for (uint256 i = 0; i < allCampaigns.length; i++) {
-                if (allCampaigns[i].id == _id) {
-                    allCampaigns[i].status = CampaignStatus.Active;
-                    allCampaigns[i].stake = 0;
-                    break;
-                }
-            }
-            uint256 s = c.stake;
-            c.stake = 0;
-            (bool ok, ) = payable(c.owner).call{value: s}("");
-            require(ok, "Stake refund failed");
-            emit Finalized(_id, CampaignStatus.Active);
+        require(c.status == CampaignStatus.Active, "Campaign not active");
+        require(c.amountCollected >= c.target || block.timestamp >= c.deadline, "Not ready to finalize");
+        if (c.amountCollected >= c.target) {
+            c.status = CampaignStatus.Successful;
         } else {
             c.status = CampaignStatus.Failed;
-            for (uint256 i = 0; i < allCampaigns.length; i++) {
-                if (allCampaigns[i].id == _id) {
-                    allCampaigns[i].status = CampaignStatus.Failed;
-                    allCampaigns[i].stake = 0;
-                    break;
-                }
-            }
-            uint256 s2 = c.stake;
-            c.stake = 0;
-            (bool ok2, ) = payable(treasury).call{value: s2}("");
-            require(ok2, "Stake transfer failed");
-            emit Finalized(_id, CampaignStatus.Failed);
         }
+        for (uint256 i = 0; i < allCampaigns.length; i++) {
+            if (allCampaigns[i].id == _id) {
+                allCampaigns[i].status = c.status;
+                break;
+            }
+        }
+        emit Finalized(_id, c.status);
+    }
+
+    function withdraw(uint256 _id) public {
+        Campaign storage c = campaigns[_id];
+        require(msg.sender == c.owner, "Only the owner can withdraw");
+        require(c.status == CampaignStatus.Successful, "Campaign not successful");
+        uint256 amount = c.amountCollected;
+        require(amount > 0, "No funds");
+        c.amountCollected = 0;
+        for (uint256 i = 0; i < allCampaigns.length; i++) {
+            if (allCampaigns[i].id == _id) {
+                allCampaigns[i].amountCollected = 0;
+                break;
+            }
+        }
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        require(ok, "Withdrawal failed");
     }
 }
